@@ -50,8 +50,9 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Deployment via SSM
+        id: ssm
         run: |
-          aws ssm send-command \
+          CMD_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --comment "Deploy Flask app through CI/CD" \
@@ -60,5 +61,16 @@ jobs:
               \"docker stop cs6620-app || true\",
               \"docker rm cs6620-app || true\",
               \"docker run -d --name cs6620-app --restart unless-stopped -p 80:5000 ${{ secrets.DOCKERHUB_USERNAME }}/cs6620-app:latest\"
-            ]"
+            ]" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "Command ID: $CMD_ID"
+          echo "cmd_id=$CMD_ID" >> $GITHUB_OUTPUT
+
+      - name: Check Deployment via SSM command status
+        run: |
+          aws ssm list-command-invocations \
+          --command-id "${{ steps.ssm.outputs.cmd_id }}" \
+          --details
         
